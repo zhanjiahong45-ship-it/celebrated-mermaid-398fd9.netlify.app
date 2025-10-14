@@ -1,16 +1,26 @@
+// File: back/routes/data.js
 const express = require('express');
 const router = express.Router();
-const auth = require('../middleware/auth'); // Import our gatekeeper
+const auth = require('../middleware/auth');
 const User = require('../models/User');
 
-// --- Smart Logic: Daily Reset Function (user-specific) ---
+// --- Smart Logic: Daily Reset Function (now more robust) ---
 const resetDailyDataIfNeeded = (user) => {
     const today = new Date().toDateString();
     if (user.data.lastCheckinDate !== today) {
-        user.data.habits.forEach(h => h.checked = false);
-        const coreHabits = user.data.habits.filter(h => h.id <= 4);
-        if (coreHabits.length > 0) {
-            user.data.focusHabitId = coreHabits[Math.floor(Math.random() * coreHabits.length)].id;
+        if (user.data.habits && user.data.habits.length > 0) {
+            user.data.habits.forEach(h => h.checked = false);
+            
+            // --- BUG FIX IS HERE ---
+            const coreHabits = user.data.habits.filter(h => h.id <= 4);
+            // Only pick a new focus if core habits exist
+            if (coreHabits && coreHabits.length > 0) {
+                user.data.focusHabitId = coreHabits[Math.floor(Math.random() * coreHabits.length)].id;
+            } else {
+                // As a fallback, set to a default if no core habits are found
+                user.data.focusHabitId = 1; 
+            }
+            // --- END OF BUG FIX ---
         }
         console.log(`New day for user ${user.username}! Habits reset.`);
     }
@@ -18,14 +28,18 @@ const resetDailyDataIfNeeded = (user) => {
 
 // @route   GET api/data
 // @desc    Get all of the logged-in user's data
-// @access  Private (requires a token)
+// @access  Private
 router.get('/', auth, async (req, res) => {
     try {
         const user = await User.findById(req.user.id).select('-password');
+        if (!user) {
+            return res.status(404).json({ msg: 'User not found' });
+        }
         resetDailyDataIfNeeded(user);
         await user.save();
         res.json(user.data);
     } catch (err) {
+        console.error('Server Error in GET /api/data:', err.message);
         res.status(500).send('Server Error');
     }
 });
@@ -39,6 +53,7 @@ router.post('/checkin', auth, async (req, res) => {
         resetDailyDataIfNeeded(user);
 
         const { habitId, distance } = req.body;
+        // Mongoose subdocuments are not plain arrays, need to use .find() on the array
         const habit = user.data.habits.find(h => h.id === habitId);
 
         if (habit && !habit.checked) {
@@ -77,12 +92,13 @@ router.post('/checkin', auth, async (req, res) => {
             await user.save();
             res.status(200).json({
                 message: `Earned ${pointsEarned} points!`,
-                data: user.data // Return all updated data
+                data: user.data
             });
         } else {
             return res.status(400).json({ msg: 'Habit not found or already checked in' });
         }
     } catch (err) {
+        console.error('Server Error in POST /api/data/checkin:', err.message);
         res.status(500).send('Server Error');
     }
 });
@@ -105,6 +121,7 @@ router.post('/habits/add', auth, async (req, res) => {
         await user.save();
         res.status(201).json(user.data.habits);
     } catch (err) {
+        console.error('Server Error in POST /api/data/habits/add:', err.message);
         res.status(500).send('Server Error');
     }
 });
