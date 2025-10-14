@@ -1,13 +1,33 @@
+// File: back/server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-require('dotenv').config(); // This loads the .env file
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
-app.use(cors());
+// --- CORS FIX: START ---
+// Define allowed origins
+const allowedOrigins = [
+    'http://localhost:3000', // For your local development
+    'https://celebrated-mermaid-398fd9.netlify.app' // Your deployed frontend URL
+];
+
+const corsOptions = {
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    }
+};
+
+app.use(cors(corsOptions)); // Use the configured CORS options
+// --- CORS FIX: END ---
+
+
 app.use(express.json());
 
 // Connect to MongoDB
@@ -24,7 +44,7 @@ connectDB();
 
 // Define Routes
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/data', require('./routes/data')); // Add this new line for data routes
+app.use('/api/data', require('./routes/data'));
 
 // A simple test route
 app.get('/', (req, res) => res.send('API Running'));
