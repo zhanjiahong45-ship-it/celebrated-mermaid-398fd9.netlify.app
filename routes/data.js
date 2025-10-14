@@ -8,13 +8,14 @@ const User = require('../models/User');
 const resetDailyDataIfNeeded = (user) => {
     const today = new Date().toDateString();
     if (user.data.lastCheckinDate !== today) {
+        // Only perform reset logic if habits array exists and is not empty
         if (user.data.habits && user.data.habits.length > 0) {
             user.data.habits.forEach(h => h.checked = false);
             
             // --- BUG FIX IS HERE ---
             const coreHabits = user.data.habits.filter(h => h.id <= 4);
             // Only pick a new focus if core habits exist
-            if (coreHabits && coreHabits.length > 0) {
+            if (coreHabits.length > 0) {
                 user.data.focusHabitId = coreHabits[Math.floor(Math.random() * coreHabits.length)].id;
             } else {
                 // As a fallback, set to a default if no core habits are found
@@ -53,7 +54,6 @@ router.post('/checkin', auth, async (req, res) => {
         resetDailyDataIfNeeded(user);
 
         const { habitId, distance } = req.body;
-        // Mongoose subdocuments are not plain arrays, need to use .find() on the array
         const habit = user.data.habits.find(h => h.id === habitId);
 
         if (habit && !habit.checked) {
