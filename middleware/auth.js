@@ -1,22 +1,30 @@
+// File: back/middleware/auth.js (DEBUGGING VERSION)
 const jwt = require('jsonwebtoken');
 
-// This middleware function acts as a gatekeeper for protected routes
 module.exports = function (req, res, next) {
-    // Get token from the request header
     const token = req.header('Authorization')?.replace('Bearer ', '');
 
-    // Check if no token is provided
+    // --- Diagnostic Log ---
+    // Let's see what the middleware is actually using as its secret key.
+    console.log('\n--- AUTH MIDDLEWARE TRIGGERED ---');
+    console.log('Token received:', token);
+    console.log('Secret Key being used for verification:', process.env.JWT_SECRET);
+    // --------------------
+
     if (!token) {
         return res.status(401).json({ msg: 'No token, authorization denied' });
     }
 
-    // Verify the token
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        // Attach the user's ID to the request object for later use
         req.user = decoded.user;
-        next(); // If token is valid, proceed to the next step (the route handler)
+        console.log('--- TOKEN VERIFICATION SUCCESSFUL ---');
+        next();
     } catch (err) {
+        // --- This is where your error is coming from ---
+        console.error('💥💥💥 TOKEN VERIFICATION FAILED! 💥💥💥');
+        console.error('The error was:', err.message);
+        // ---------------------------------------------
         res.status(401).json({ msg: 'Token is not valid' });
     }
 };
