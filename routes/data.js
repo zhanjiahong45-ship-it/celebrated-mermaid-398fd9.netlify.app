@@ -13,7 +13,7 @@ const resetDailyDataIfNeeded = (user) => {
             if (coreHabits.length > 0) {
                 user.data.focusHabitId = coreHabits[Math.floor(Math.random() * coreHabits.length)].id;
             } else {
-                user.data.focusHabitId = 1;
+                user.data.focusHabitId = 1; 
             }
         }
     }
@@ -26,9 +26,14 @@ router.get('/', auth, async (req, res) => {
             return res.status(404).json({ msg: 'User not found' });
         }
         resetDailyDataIfNeeded(user);
+        
+        // --- FIX: Explicitly mark the path as modified before saving ---
+        user.markModified('data');
         await user.save();
+
         res.json(user.data);
     } catch (err) {
+        console.error('Server Error in GET /api/data:', err.message);
         res.status(500).send('Server Error');
     }
 });
@@ -36,7 +41,6 @@ router.get('/', auth, async (req, res) => {
 router.post('/checkin', auth, async (req, res) => {
     try {
         const user = await User.findById(req.user.id);
-        resetDailyDataIfNeeded(user);
         const { habitId, distance } = req.body;
         const habit = user.data.habits.find(h => h.id === habitId);
 
@@ -58,7 +62,7 @@ router.post('/checkin', auth, async (req, res) => {
             yesterday.setDate(today.getDate() - 1);
             if (user.data.lastCheckinDate === yesterday.toDateString()) {
                 user.data.streak += 1;
-            } else if (user.data.lastCheckinDate !== today.toDateString()) {
+            } else if (user.data.lastCheckinDate !== today.toDateString()){
                 user.data.streak = 1;
             }
             user.data.lastCheckinDate = today.toDateString();
@@ -71,7 +75,10 @@ router.post('/checkin', auth, async (req, res) => {
                 user.data.contribution.waterSavedLiters += habit.value;
             }
             
+            // --- FIX: Explicitly mark the path as modified before saving ---
+            user.markModified('data');
             await user.save();
+
             res.status(200).json({
                 message: `Earned ${pointsEarned} points!`,
                 data: user.data
@@ -80,6 +87,7 @@ router.post('/checkin', auth, async (req, res) => {
             return res.status(400).json({ msg: 'Habit not found or already checked in' });
         }
     } catch (err) {
+        console.error('Server Error in POST /api/data/checkin:', err.message);
         res.status(500).send('Server Error');
     }
 });
@@ -96,15 +104,17 @@ router.post('/habits/add', auth, async (req, res) => {
             isCustom: true
         };
         user.data.habits.push(newHabit);
+        
+        // --- FIX: Explicitly mark the path as modified before saving ---
+        user.markModified('data');
         await user.save();
-        // --- CRITICAL FIX IS HERE ---
-        // Always return the full, updated user data object for consistency.
+        
         res.status(201).json({ 
             message: `'${name}' added successfully!`,
             data: user.data 
         });
-        // --- END OF CRITICAL FIX ---
     } catch (err) {
+        console.error('Server Error in POST /api/data/habits/add:', err.message);
         res.status(500).send('Server Error');
     }
 });
